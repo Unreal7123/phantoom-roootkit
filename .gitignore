@@ -1,0 +1,78 @@
+# PhantomScope .gitignore
+
+# ---- Build outputs ----
+/build/
+/dist/
+/dist-electron/
+/build-tests/
+
+# ---- Node.js ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# ---- TypeScript ----
+*.tsbuildinfo
+*.js.map
+
+# ---- Electron ----
+out/
+
+# ---- IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*.DS_Store
+Thumbs.db
+
+# ---- ASM build artifacts ----
+/asm/*.obj
+/asm/*.o
+/asm/log2_lut_generated.asm
+
+# ---- C++ build artifacts ----
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.node
+
+# ---- Test artifacts ----
+/tests/e2e/report/
+/coverage/
+
+# ---- SQLite database (user data) ----
+*.db
+*.db-shm
+*.db-wal
+
+# ---- Environment & secrets ----
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ---- Distribution archives ----
+*.zip
+*.tar.gz
+*.AppImage
+
+# ---- Python ----
+__pycache__/
+*.pyc
+
+# ---- CMake ----
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+
+# ---- NASM listing files ----
+*.lst

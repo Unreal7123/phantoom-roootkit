@@ -1,0 +1,123 @@
+{
+  "name": "phantomscope",
+  "version": "1.0.0",
+  "description": "Rootkit Detection & Forensic Analysis Platform",
+  "main": "src/app/main.js",
+  "homepage": "./",
+  "author": "Security Research",
+  "license": "UNLICENSED",
+  "private": true,
+  "keywords": ["rootkit", "forensics", "security", "malware-analysis"],
+
+  "scripts": {
+    "start":         "concurrently \"npm run start:react\" \"npm run start:electron\"",
+    "start:react":   "vite --port 3000",
+    "start:electron": "wait-on http://localhost:3000 && cross-env NODE_ENV=development electron .",
+    "build":         "npm run build:react && npm run build:native",
+    "build:react":   "vite build",
+    "build:native":  "node-gyp rebuild",
+    "build:asm":     "node scripts/build-asm.js",
+    "build:full":    "npm run build:asm && npm run build:native && npm run build:react",
+    "package:win":   "electron-builder --win",
+    "package:linux": "electron-builder --linux",
+    "package:all":   "electron-builder --win --linux",
+    "test":          "jest",
+    "test:unit":     "jest tests/unit",
+    "test:e2e":      "playwright test",
+    "lint":          "eslint src/ui --ext .ts,.tsx"
+  },
+
+  "dependencies": {
+    "better-sqlite3":  "^9.4.3",
+    "cytoscape":       "^3.28.1",
+    "cytoscape-cose-bilkent": "^4.1.0",
+    "d3":              "^7.9.0",
+    "electron-updater":"^6.1.7",
+    "keytar":          "^7.9.0",
+    "pdfmake":         "^0.2.9",
+    "puppeteer":       "^22.0.0",
+    "react":           "^18.2.0",
+    "react-dom":       "^18.2.0",
+    "react-window":    "^1.8.10",
+    "zustand":         "^4.5.0"
+  },
+
+  "devDependencies": {
+    "@playwright/test":          "^1.42.1",
+    "@types/better-sqlite3":     "^7.6.8",
+    "@types/cytoscape":          "^3.21.3",
+    "@types/d3":                 "^7.4.3",
+    "@types/node":               "^20.11.5",
+    "@types/react":              "^18.2.48",
+    "@types/react-dom":          "^18.2.18",
+    "@types/react-window":       "^1.8.8",
+    "@typescript-eslint/eslint-plugin": "^7.0.1",
+    "@typescript-eslint/parser":        "^7.0.1",
+    "@vitejs/plugin-react":      "^4.2.1",
+    "concurrently":              "^8.2.2",
+    "cross-env":                 "^7.0.3",
+    "electron":                  "^29.0.1",
+    "electron-builder":          "^24.9.1",
+    "eslint":                    "^8.56.0",
+    "immer":                     "^10.0.3",
+    "jest":                      "^29.7.0",
+    "node-gyp":                  "^10.0.1",
+    "typescript":                "^5.3.3",
+    "vite":                      "^5.0.12",
+    "wait-on":                   "^7.2.0"
+  },
+
+  "build": {
+    "appId":       "com.security.phantomscope",
+    "productName": "PhantomScope",
+    "copyright":   "Security Research Tool",
+    "files": [
+      "dist/**/*",
+      "src/app/**/*",
+      "build/Release/**/*",
+      "resources/**/*",
+      "node_modules/**/*",
+      "!node_modules/.cache"
+    ],
+    "directories": {
+      "buildResources": "resources",
+      "output":         "dist-electron"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "resources/icon.ico",
+      "certificateSubjectName": "PhantomScope",
+      "requestedExecutionLevel": "requireAdministrator"
+    },
+    "nsis": {
+      "installerIcon": "resources/icon.ico",
+      "installerHeaderIcon": "resources/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb",      "arch": ["x64"] },
+        { "target": "rpm",      "arch": ["x64"] }
+      ],
+      "icon":     "resources/icon.png",
+      "category": "Security",
+      "maintainer": "security@phantomscope",
+      "synopsis":   "Rootkit Detection & Forensic Analysis"
+    },
+    "deb": {
+      "depends": ["libsecret-1-0", "libcurl4"]
+    }
+  },
+
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.{js,ts}"],
+    "transform": { "^.+\\.tsx?$": "ts-jest" }
+  }
+}

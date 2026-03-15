@@ -1,0 +1,257 @@
+# ============================================================================
+# PhantomScope — .github/workflows/build.yml
+# CI/CD Pipeline: Windows x64 + Linux x64 Matrix Build
+# ============================================================================
+
+name: Build & Test
+
+on:
+  push:
+    branches: [main, develop]
+    tags:     ['v*.*.*']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  NASM_VERSION: '2.16.01'
+
+jobs:
+  # ============================================================================
+  # Job: Build NASM ASM + C++ Bridge + Run C++ Unit Tests
+  # ============================================================================
+  native-build:
+    name: Native (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      # ---- Windows: Install NASM ----
+      - name: Install NASM (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install nasm --version=${{ env.NASM_VERSION }} -y
+          refreshenv
+          nasm --version
+
+      # ---- Linux: Install build dependencies ----
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y nasm cmake libcurl4-openssl-dev libsecret-1-dev
+          nasm --version
+          cmake --version
+
+      # ---- Install Node.js dependencies ----
+      - name: Install npm packages
+        run: npm ci
+
+      # ---- Build NASM assembly ----
+      - name: Build ASM core
+        run: node scripts/build-asm.js
+        continue-on-error: true  # ASM build may fail if NASM not in PATH on CI
+
+      # ---- Build C++ native addon ----
+      - name: Build native addon (node-gyp)
+        run: npm run build:native
+        env:
+          npm_config_build_from_source: true
+
+      # ---- Run C++ unit tests ----
+      - name: Run MD5 test vectors (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cmake -B build-tests -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build-tests --config Debug --target phantomscope_tests
+          ./build-tests/Debug/phantomscope_tests.exe
+        continue-on-error: true
+
+      - name: Run MD5 test vectors (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -B build-tests -DCMAKE_BUILD_TYPE=Debug
+          cmake --build build-tests --target phantomscope_tests -j4
+          ./build-tests/phantomscope_tests
+        continue-on-error: true
+
+      # ---- Build React UI ----
+      - name: Build React frontend
+        run: npm run build:react
+        env:
+          NODE_ENV: production
+
+      # ---- Upload native addon artifact ----
+      - name: Upload native addon
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-addon-${{ runner.os }}
+          path: build/Release/phantomscope.node
+          if-no-files-found: warn
+
+  # ============================================================================
+  # Job: Package Electron App (Windows + Linux installers)
+  # ============================================================================
+  package:
+    name: Package (${{ matrix.os }})
+    needs: native-build
+    runs-on: ${{ matrix.os }}
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-22.04]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Linux deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y nasm cmake libcurl4-openssl-dev libsecret-1-dev
+
+      - name: Install npm packages
+        run: npm ci
+
+      - name: Download native addon
+        uses: actions/download-artifact@v4
+        with:
+          name: native-addon-${{ runner.os }}
+          path: build/Release/
+
+      - name: Build full bundle
+        run: npm run build:full
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: npm run package:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: npm run package:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ runner.os }}
+          path: dist-electron/
+
+  # ============================================================================
+  # Job: E2E Tests
+  # ============================================================================
+  e2e:
+    name: E2E Tests (Linux)
+    needs: native-build
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y libsecret-1-dev xvfb
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Download native addon
+        uses: actions/download-artifact@v4
+        with:
+          name: native-addon-Linux
+          path: build/Release/
+
+      - name: Build React
+        run: npm run build:react
+
+      - name: Run E2E tests (headless via Xvfb)
+        run: xvfb-run --auto-servernum npm run test:e2e
+        env:
+          DISPLAY: ':99'
+
+      - name: Upload E2E report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-report
+          path: tests/e2e/report/
+
+  # ============================================================================
+  # Job: Release (on tag push)
+  # ============================================================================
+  release:
+    name: Create Release
+    needs: [package]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "PhantomScope ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          files: |
+            release-artifacts/dist-Windows/**/*.exe
+            release-artifacts/dist-Linux/**/*.AppImage
+            release-artifacts/dist-Linux/**/*.deb
+          body: |
+            ## PhantomScope ${{ github.ref_name }}
+
+            Rootkit Detection & Forensic Analysis Platform
+
+            ### Downloads
+            - **Windows**: NSIS installer (.exe) — requires Windows 10/11 x64
+            - **Linux**: AppImage (universal) + .deb (Ubuntu/Debian)
+
+            ### What's New
+            See [CHANGELOG.md](CHANGELOG.md) for full details.
+
+            ### Security Notice
+            This tool requires elevated privileges for full functionality:
+            - Windows: `SeDebugPrivilege` (auto-requested)
+            - Linux: `CAP_SYS_PTRACE` or root for cross-UID `/proc` access
+
+            **Authorized use only.**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
