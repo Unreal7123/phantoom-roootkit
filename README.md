@@ -35,7 +35,7 @@ Built with a **4-tier architecture** spanning raw NASM assembly to a React-based
 
 ---
 
-## 🔍 Core Detection Method
+## 🔍 Core Detection Methods
 
 PhantomScope detects hidden processes by comparing **two independent enumeration paths**:
 
