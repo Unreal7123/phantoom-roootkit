@@ -130,7 +130,7 @@ score = 0
 
 ---
 
-## 📁 Project Structure.
+## 📁 Project Structure
 
 ```
 phantoom-roootkit/
