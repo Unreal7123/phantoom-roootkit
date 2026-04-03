@@ -19,7 +19,7 @@ Built with a **4-tier architecture** spanning raw NASM assembly to a React-based
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture Overvie
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
