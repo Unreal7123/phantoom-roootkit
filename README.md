@@ -54,7 +54,7 @@ Modern rootkits hook user-mode API entry points in `ntdll.dll`. Standard tools a
 Application → kernel32.dll → ntdll.NtOpenProcess [HOOKED by rootkit] → kernel
 ```
 
-PhantomScope bypasses the hook entirely using **Hell's Gate** SSN resolution:
+PhantomScope bypasses the hook entirely using **Hell's Gate** SSN resolution:-
 
 ```nasm
 ; syscall_wrapper.asm — Dynamic SSN resolution
